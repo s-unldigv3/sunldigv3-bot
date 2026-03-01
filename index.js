@@ -3,12 +3,14 @@ const WebSocket = require('ws');
 const fetch = require('node-fetch');
 const fs = require('fs-extra');
 const path = require('path');
+const { Mutex } = require('async-mutex'); // 新增：文件写入互斥锁
 
 // 模拟浏览器的 localStorage（使用文件存储）
 class LocalStorageMock {
     constructor(storagePath = './storage.json') {
         this.storagePath = storagePath;
         this.data = {};
+        this.mutex = new Mutex(); // 新增：文件操作互斥锁，解决并发写入冲突
         // 加载已有数据
         try {
             if (fs.existsSync(this.storagePath)) {
@@ -23,31 +25,54 @@ class LocalStorageMock {
         return this.data[key] || null;
     }
 
-    setItem(key, value) {
-        this.data[key] = value;
-        // 持久化到文件
+    async setItem(key, value) { // 修改：改为异步+加锁
+        const release = await this.mutex.acquire();
         try {
-            fs.writeFileSync(this.storagePath, JSON.stringify(this.data, null, 2), 'utf8');
+            this.data[key] = value;
+            await fs.writeFile(this.storagePath, JSON.stringify(this.data, null, 2), 'utf8');
         } catch (err) {
             console.error('[LocalStorage 保存失败]', err);
+        } finally {
+            release();
         }
     }
 
-    removeItem(key) {
-        delete this.data[key];
+    async removeItem(key) { // 修改：改为异步+加锁
+        const release = await this.mutex.acquire();
         try {
-            fs.writeFileSync(this.storagePath, JSON.stringify(this.data, null, 2), 'utf8');
+            delete this.data[key];
+            await fs.writeFile(this.storagePath, JSON.stringify(this.data, null, 2), 'utf8');
         } catch (err) {
             console.error('[LocalStorage 删除失败]', err);
+        } finally {
+            release();
         }
     }
 
-    clear() {
-        this.data = {};
+    async clear() { // 修改：改为异步+加锁
+        const release = await this.mutex.acquire();
+        try {
+            this.data = {};
+            await fs.writeFile(this.storagePath, JSON.stringify(this.data, null, 2), 'utf8');
+        } catch (err) {
+            console.error('[LocalStorage 清空失败]', err);
+        } finally {
+            release();
+        }
+    }
+
+    // 新增：同步get方法（兼容原有逻辑）
+    getSync(key) {
+        return this.data[key] || null;
+    }
+
+    // 新增：同步set方法（仅用于兼容旧逻辑，优先用异步）
+    setSync(key, value) {
+        this.data[key] = value;
         try {
             fs.writeFileSync(this.storagePath, JSON.stringify(this.data, null, 2), 'utf8');
         } catch (err) {
-            console.error('[LocalStorage 清空失败]', err);
+            console.error('[LocalStorage 同步保存失败]', err);
         }
     }
 }
@@ -55,9 +80,9 @@ class LocalStorageMock {
 // 全局挂载模拟的 localStorage
 const localStorage = new LocalStorageMock();
 
-// 配置项（删除原adminPrefix，仅保留必要配置）
+// 配置项
 const CONFIG = {
-    server: "wss://hack.chat/chat-ws", // 官方WS地址，禁止修改
+    server: "wss://hack.chat/chat-ws", // 官方WS地址
     channel: "lounge", // 机器人频道
     botName: "sunldigv3_bot",
     debug: false, // 调试模式
@@ -66,14 +91,19 @@ const CONFIG = {
         enable: true, // 是否启用颜色设置
         hex: "#5ee6ed" // 16进制颜色值（必须以#开头）
     },
+    // 新增：留言配置
+    ly: {
+        expireDays: 7, // 留言过期天数
+        storageKey: `bot_sunldigv3_bot_lyMessages` // 留言存储key
+    },
     // 通用常量
     CONST: {
         ADMIN_TRIPCODE: '2UE++I', // 管理员专属tripcode
         cmdPrefix: '!', // 命令前缀
-        sendRateLimit: 200, // 防限流发送间隔（ms）
+        sendRateLimit: 1000, // 防限流发送间隔（ms）
         muteCheckInterval: 10000, // 禁言检查间隔10秒
         maxMsgHistory: 5000, // 本地消息最大存储量
-        latestMsgCount: 5, // 最新消息展示数
+        latestMsgCount: 5, // 最新消息展示数（默认）
         welcomeMsg: "欢迎 %s 加入！发送`!help`查看命令",
         emojiList: ['😀', '😂', '🤣', '😊', '👍', '🎉', '🎁', '🌟', '🚀', '💡', '📚', '🎲', '☁️', '⚡', '❤️'],
         // 模仿风格模板
@@ -97,7 +127,10 @@ const CONFIG = {
             includeYiyan: true,
             includeStyle: true,
             includeTriviaAuto: false
-        }
+        },
+        // 新增：内存清理配置
+        timestampExpireHours: 1, // 时间戳过期小时数
+        userActivityExpireHours: 24 // 用户活跃度过期小时数
     }
 };
 
@@ -118,6 +151,7 @@ const CMD_CONFIG = {
     weather: { trigger: ['weather', '天气'], desc: '查询城市简易天气', auth: false, public: true, params: '[城市名]' },
     emoji: { trigger: ['emoji', '表情'], desc: '发送随机表情包', auth: false, public: true, params: '' },
     yiyan: { trigger: ['yiyan', '一言'], desc: '随机获取一言（来自 hitokoto）', auth: false, public: true, params: '' },
+    ly: { trigger: ['ly'], desc: '留言 格式:!ly [tripcode] [text]', auth: false, public: true, params: '' },
     // 管理员命令
     specialHelp: { trigger: ['helpadmin'], desc: '查看管理员专属命令', auth: false, public: false, params: '' },
     mute: { trigger: ['mute'], desc: '临时禁言用户', auth: true, public: false, params: '[用户名] [分钟数]' },
@@ -127,7 +161,7 @@ const CMD_CONFIG = {
     announce: { trigger: ['announce'], desc: '发送频道醒目公告', auth: true, public: false, params: '[公告内容]' },
     pann: { trigger: ['pann'], desc: '管理定时公告：pann add|remove|list|clear', auth: true, public: false, params: '[子命令]' },
     if: { trigger: ['if'], desc: '管理自动回复规则：if add A B N|list|remove|clear', auth: true, public: false, params: '[子命令]' },
-    talk: { trigger: ['talk'], desc: '控制机器人发言状态：!talk on|off', auth: true, public: false, params: '[on/off]' },
+    talk: { trigger: ['talk'], desc: '控制机器人发言状态：!talk on|off', auth: true, public: false, params: '[on/off]' }, // 修改：改为管理员命令
     stop: { trigger: ['stop'], desc: '停止机器人并退出', auth: true, public: false, params: '' }
 };
 
@@ -136,7 +170,7 @@ const bot = {
     ws: null,
     clientId: Math.random().toString(36).slice(2, 10),
     lastSendTime: 0,
-    afkUsers: new Map(),
+    afkUsers: new Map(), // 扩展：支持 {time: number, reason: string} 格式
     silencedUsers: new Map(),
     messageHistory: [],
     userActivity: new Map(),
@@ -146,7 +180,7 @@ const bot = {
     cmdMap: new Map(),
     onlineUsers: new Set(),
     lastQuestionReplyTime: 0,
-    lastHourlyAnnouncement: null,
+    lastHourlyAnnouncement: null, // 新增：整点报时标记
     recentMsgTimestamps: [],
     periodicTimeoutId: null,
     scheduledAnnouncements: [], // 结构：[{content: '', interval: number, lastSendTime: 0}]
@@ -155,13 +189,20 @@ const bot = {
     ifRules: [], // 自动回复规则：[{trigger: '', reply: '', probability: number, id: number, isRegex?: boolean}]
     ifTimer: null, // A为空的规则定时器
     isMuted: false, // 是否闭嘴（核心状态：true=仅响应!talk on，false=正常）
+    // 新增：留言相关
+    lyMessages: [], // 留言列表：{ id, toTrip, fromNick, fromTrip, content, createTime, expireTime }
+    // 新增：防止重复stop标记
+    isStopping: false,
 
     // 初始化入口
     init() {
         this.initCmdMap();
-        this.loadIfRules(); // 加载if规则
+        this.loadIfRules(); 
+        this.loadLyMessages(); // 加载留言
         this.connectWS();
         this.startTimers();
+        // 新增：启动内存清理定时器
+        this.startMemoryCleaner();
         console.log(`[✅ ${CONFIG.botName}] 机器人启动 | 初始发言状态：正常`);
     },
 
@@ -184,7 +225,6 @@ const bot = {
     connectWS() {
         if (this.ws) this.ws.close(1000, 'reconnect');
         
-        // 创建Node.js的WebSocket客户端
         this.ws = new WebSocket(CONFIG.server);
 
         this.ws.on('open', () => {
@@ -218,7 +258,7 @@ const bot = {
         });
     },
 
-    // 加入频道（仅初始化时发送，不受闭嘴状态影响）
+    // 加入频道
     joinChannel() {
         if (this.ws.readyState !== WebSocket.OPEN) return;
         this.sendWSMessage({
@@ -226,29 +266,25 @@ const bot = {
             channel: CONFIG.channel,
             nick: CONFIG.botName,
             clientId: this.clientId
-        }, true, true); // 忽略限流+强制发送（仅加入频道）
-        // 发送颜色设置指令
+        }, true, true); 
         this.sendColorCommand();
     },
 
-    // 发送颜色设置指令（仅初始化时强制发送）
+    // 发送颜色设置指令
     sendColorCommand() {
-        // 校验配置是否启用且颜色格式合法
         if (!CONFIG.color?.enable) return;
         const colorHex = CONFIG.color.hex?.trim() || '';
-        // 验证16进制颜色格式（#开头 + 6位/3位16进制字符）
         const colorReg = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/;
         if (!colorReg.test(colorHex)) {
             console.error(`[颜色配置错误] 无效的16进制颜色值：${colorHex}`);
             return;
         }
         
-        // 发送/color指令（仅初始化时强制发送）
         this.sendWSMessage({
             cmd: 'chat',
             text: `/color ${colorHex}`,
             clientId: this.clientId
-        }, true, true); // 忽略限流+强制发送
+        }, true, true); 
         CONFIG.debug && console.log(`[颜色设置] 已发送：/color ${colorHex}`);
     },
 
@@ -257,25 +293,22 @@ const bot = {
         switch (msg.cmd) {
             case 'chat':
                 this.recordMessage(msg);
-                // 闭嘴状态下，仅处理!talk on命令，其他都跳过
                 if (this.isMuted) {
                     const text = msg.text.trim();
                     if (text === '!talk on') {
                         this.handleCommands(msg, text);
                     }
-                    return; // 直接返回，不处理其他逻辑
+                    return;
                 }
-                // 非闭嘴状态，正常处理
                 if (!this.isSilenced(msg.nick)) {
                     this.handleChatMessage(msg);
-                    this.checkIfRules(msg.text); // 检查if规则匹配
+                    this.checkIfRules(msg.text);
                 } else {
                     const remain = Math.ceil((this.silencedUsers.get(msg.nick) - Date.now()) / 60000);
                     this.sendChat(`${msg.nick} 禁言中，剩余${Math.max(remain, 0)}分钟`);
                 }
                 break;
             case 'error':
-                // 闭嘴状态下，不处理错误提示
                 if (!this.isMuted) {
                     this.handleServerError(msg);
                 }
@@ -285,7 +318,6 @@ const bot = {
                 break;
             case 'onlineAdd':
                 this.onlineUsers.add(msg.nick);
-                // 闭嘴状态下，不发送欢迎消息
                 if (!this.isMuted) {
                     this.sendWelcomeMessage(msg.nick);
                 }
@@ -300,7 +332,7 @@ const bot = {
         }
     },
 
-    // 新用户欢迎（受闭嘴状态控制）
+    // 新用户欢迎
     sendWelcomeMessage(nick) {
         if (nick === CONFIG.botName || this.isMuted) return;
         const welcomeText = CONFIG.CONST.welcomeMsg.replace('%s', nick);
@@ -316,14 +348,12 @@ const bot = {
         this.handleAFKMention(msg);
         this.updateUserActivity(msg.nick);
 
-        // 问号回复逻辑（概率15%，受闭嘴状态控制）
         try {
-            if (this.isMuted) return; // 闭嘴状态不回复
+            if (this.isMuted) return;
             if (!text.startsWith(CONFIG.CONST.cmdPrefix) && /[？?]/.test(text)) {
                 const now = Date.now();
                 const isJustQuestion = /^[？?]+$/.test(text);
                 if (isJustQuestion || !this.lastQuestionReplyTime || now - this.lastQuestionReplyTime > 5000) {
-                    // 15%概率回复
                     const randomNum = Math.random();
                     if (randomNum <= 0.15) {
                         const reply = this.pickStyleReply('questionReplies');
@@ -335,16 +365,14 @@ const bot = {
         } catch (e) { console.error('[问号处理错误]', e); }
     },
 
-    // 检查if规则匹配（新增正则模式支持）
+    // 检查if规则匹配
     checkIfRules(text) {
         if (this.isMuted || !this.ifRules.length) return;
         const trimText = text.trim();
         this.ifRules.forEach(rule => {
             let isMatch = false;
-            // 判断是否为正则模式
             if (rule.isRegex) {
                 try {
-                    // 构建正则表达式，忽略大小写
                     const regex = new RegExp(rule.trigger, 'i');
                     isMatch = regex.test(trimText);
                 } catch (e) {
@@ -352,12 +380,10 @@ const bot = {
                     isMatch = false;
                 }
             } else {
-                // 原有完全匹配逻辑
                 isMatch = trimText === rule.trigger;
             }
 
             if (isMatch) {
-                // 按概率发送回复
                 const randomNum = Math.random();
                 if (randomNum <= rule.probability / 100) {
                     this.sendChat(rule.reply);
@@ -370,7 +396,7 @@ const bot = {
     loadIfRules() {
         try {
             const key = `bot_${CONFIG.botName}_ifRules`;
-            const raw = localStorage.getItem(key);
+            const raw = localStorage.getSync(key); // 修改：使用同步get
             this.ifRules = raw ? JSON.parse(raw) : [];
         } catch (e) {
             this.ifRules = [];
@@ -378,18 +404,23 @@ const bot = {
     },
 
     // 保存if规则
-    saveIfRules() {
+    async saveIfRules() { // 修改：改为异步
         try {
             const key = `bot_${CONFIG.botName}_ifRules`;
-            localStorage.setItem(key, JSON.stringify(this.ifRules || []));
-        } catch (e) {}
+            await localStorage.setItem(key, JSON.stringify(this.ifRules || []));
+        } catch (e) {
+            console.error('[保存if规则失败]', e);
+        }
     },
 
-    // 运行A为空的if规则定时器（受闭嘴状态控制）
+    // 运行A为空的if规则定时器
     runEmptyIfTimer() {
-        if (this.ifTimer) clearInterval(this.ifTimer);
+        if (this.ifTimer) { // 修改：先清理旧定时器
+            clearInterval(this.ifTimer);
+            this.ifTimer = null;
+        }
         this.ifTimer = setInterval(() => {
-            if (this.isMuted) return; // 闭嘴状态不执行
+            if (this.isMuted) return;
             this.ifRules.forEach(rule => {
                 if (!rule.trigger || rule.trigger.trim() === '') {
                     const randomNum = Math.random();
@@ -398,7 +429,7 @@ const bot = {
                     }
                 }
             });
-        }, 10000); // 每10秒检查一次
+        }, 10000);
     },
 
     // 记录消息
@@ -407,20 +438,22 @@ const bot = {
         const msgObj = {
             id: this.nextMessageId++,
             nick: msg.nick,
-            trip: msg.trip || '', // 记录用户的tripcode
+            trip: msg.trip || '',
             text: msg.text,
             time: new Date().toISOString()
         };
         this.messageHistory.push(msgObj);
         this.messageIdMap.set(msgObj.id, msgObj);
 
-        // 记录最近消息时间戳
         this.recentMsgTimestamps = this.recentMsgTimestamps || [];
         this.recentMsgTimestamps.push(Date.now());
+        
+        // 修改：内存清理 - 截断+过期清理
         const MAX_TS = 500;
         if (this.recentMsgTimestamps.length > MAX_TS) {
             this.recentMsgTimestamps.splice(0, this.recentMsgTimestamps.length - MAX_TS);
         }
+        this.cleanExpiredTimestamps(); // 清理过期时间戳
 
         if (this.messageHistory.length > CONFIG.CONST.maxMsgHistory) {
             const delMsg = this.messageHistory.shift();
@@ -428,24 +461,28 @@ const bot = {
         }
     },
 
-    // 命令处理（核心修改：闭嘴状态下仅响应!talk on）
+    // 命令处理 - 修复核心：移除无限递归调用
     handleCommands(msg, text) {
         const [cmdTrigger, ...params] = text.split(/\s+/);
         const cmdItem = this.cmdMap.get(cmdTrigger);
         
-        // 闭嘴状态下，仅处理!talk on命令
         if (this.isMuted) {
             if (cmdTrigger === '!talk' && params[0]?.toLowerCase() === 'on') {
-                // 仅允许!talk on突破闭嘴状态
-                this.handleTalk(msg, params);
+                // 修复：直接处理!talk on逻辑，不再递归调用自身
+                if (this.hasAdminAuth(msg)) {
+                    this.isMuted = false;
+                    this.sendChat(`张嘴，说话`, true);
+                    console.log(`[${CONFIG.botName}] 已切换为正常发言状态`);
+                } else {
+                    this.sendChat(`无权限，仅tripcode为2UE++I的管理员可执行`);
+                }
             }
-            return; // 其他命令全部跳过
+            return;
         }
 
         if (!cmdItem) return;
 
         try {
-            // 核心修改：管理员权限判断改为校验tripcode
             if (cmdItem.auth && !this.hasAdminAuth(msg)) {
                 this.sendChat(`无权限，仅tripcode为2UE++I的管理员可执行`);
                 return;
@@ -461,13 +498,12 @@ const bot = {
         }
     },
 
-    // 发送WS消息（防限流，闭嘴状态下仅!talk on可发送）
+    // 发送WS消息
     sendWSMessage(data, ignoreLimit = false, ignoreMute = false) {
         if (this.ws.readyState !== WebSocket.OPEN) {
             console.error(`[发送失败] 连接未建立`);
             return;
         }
-        // 闭嘴状态下，仅!talk on的回复可发送
         if (this.isMuted && !ignoreMute) {
             CONFIG.debug && console.log(`[发送跳过] 机器人处于闭嘴状态`);
             return;
@@ -496,9 +532,8 @@ const bot = {
         if (CONFIG.debug) console.log(...args);
     },
 
-    // 核心修改：管理员权限判断（仅tripcode为2UE++I的用户）
+    // 管理员权限判断
     hasAdminAuth(msg) {
-        // 校验消息中的tripcode是否等于管理员专属tripcode
         return msg.trip === CONFIG.CONST.ADMIN_TRIPCODE;
     },
 
@@ -517,7 +552,7 @@ const bot = {
         this.userActivity.set(nick, (this.userActivity.get(nick) || 0) + 1);
     },
 
-    // AFK@提醒（受闭嘴状态控制）
+    // AFK@提醒
     handleAFKMention(msg) {
         if (this.isMuted) return;
         const mentionReg = /@(\w+)/g;
@@ -525,14 +560,15 @@ const bot = {
         while ((match = mentionReg.exec(msg.text)) !== null) {
             const user = match[1];
             if (this.afkUsers.has(user)) {
-                const afkMs = Date.now() - this.afkUsers.get(user);
+                const afkData = this.afkUsers.get(user);
+                const afkMs = Date.now() - (typeof afkData === 'object' ? afkData.time : afkData);
                 const afkStr = afkMs > 3600000 ? `${(afkMs / 3600000).toFixed(1)}h` : `${Math.floor(afkMs / 60000)}m`;
                 this.sendChat(`@${msg.nick}：${user} AFK(${afkStr})`);
             }
         }
     },
 
-    // 服务端错误处理（受闭嘴状态控制）
+    // 服务端错误处理
     handleServerError(msg) {
         const errorMap = {
             'nicknameTaken': '昵称被占，修改botName',
@@ -558,7 +594,7 @@ const bot = {
         this.scheduledIntervals.push(muteId);
         this.debugLog(`[定时器启动] 禁言检查`);
 
-        // 每小时整点提醒（修复版，受闭嘴状态控制）
+        // 新增：整点报时定时器（恢复原有逻辑）
         this.lastHourlyAnnouncement = -1;
         const hourlyId = setInterval(() => {
             try {
@@ -599,16 +635,15 @@ const bot = {
         } catch (e) { return true; }
     },
 
-    // 加载定时公告（适配间隔配置）
+    // 加载定时公告
     loadScheduledAnnouncements() {
         try {
             const key = `bot_${CONFIG.botName}_scheduledAnnouncements`;
-            const raw = localStorage.getItem(key);
+            const raw = localStorage.getSync(key); // 修改：使用同步get
             this.scheduledAnnouncements = raw ? JSON.parse(raw) : [];
-            // 兼容旧数据格式
             this.scheduledAnnouncements = this.scheduledAnnouncements.map(item => {
                 if (typeof item === 'string') {
-                    return { content: item, interval: 15, lastSendTime: 0 }; // 默认15分钟间隔
+                    return { content: item, interval: 15, lastSendTime: 0 };
                 }
                 return { ...item, lastSendTime: item.lastSendTime || 0 };
             });
@@ -617,30 +652,36 @@ const bot = {
         }
     },
 
-    // 保存定时公告（适配间隔配置）
-    saveScheduledAnnouncements() {
+    // 保存定时公告
+    async saveScheduledAnnouncements() { // 修改：改为异步
         try {
             const key = `bot_${CONFIG.botName}_scheduledAnnouncements`;
-            // 移除lastSendTime避免持久化
             const saveData = this.scheduledAnnouncements.map(({ lastSendTime, ...rest }) => rest);
-            localStorage.setItem(key, JSON.stringify(saveData || []));
-        } catch (e) {}
+            await localStorage.setItem(key, JSON.stringify(saveData || []));
+        } catch (e) {
+            console.error('[保存定时公告失败]', e);
+        }
     },
 
-    // 安排周期性发布（10分钟检查+15%全局概率+一言/smallTalk互斥）
+    // 安排周期性发布
     schedulePeriodicPost() {
-        const min = 10 * 60 * 1000; // 10分钟检查一次
+        // 修改：先清理旧定时器，防止重复创建
+        if (this.periodicTimeoutId) {
+            clearTimeout(this.periodicTimeoutId);
+            this.periodicTimeoutId = null;
+        }
+
+        const min = 10 * 60 * 1000;
         const delay = min;
-        if (this.periodicTimeoutId) clearTimeout(this.periodicTimeoutId);
+        
         this.periodicTimeoutId = setTimeout(() => {
             try {
-                if (this.isMuted) { // 闭嘴状态跳过所有周期发布
+                if (this.isMuted) {
                     this.periodicTimeoutId = null;
                     this.schedulePeriodicPost();
                     return;
                 }
                 const now = Date.now();
-                // 检查定时公告（按间隔发送）
                 this.scheduledAnnouncements.forEach(ann => {
                     if (now - ann.lastSendTime >= ann.interval * 60 * 1000) {
                         this.sendChat(ann.content);
@@ -648,19 +689,16 @@ const bot = {
                     }
                 });
 
-                // 核心逻辑：全局15%概率 + 一言/smallTalk互斥
                 const r = Math.random();
-                if (r < 0.15) { // 仅15%概率触发
-                    // 随机二选一，实现互斥
+                if (r < 0.15) {
                     const chooseYiyan = Math.random() > 0.5;
                     if (chooseYiyan && CONFIG.CONST.periodic.includeYiyan) {
-                        this.handleYiyan(); // 发送一言
+                        this.handleYiyan();
                     } else if (!chooseYiyan && CONFIG.CONST.periodic.includeStyle) {
                         const s = this.pickStyleReply('smallTalkReplies');
-                        if (s) this.sendChat(s); // 发送smallTalk（哦哦/了解啦等）
+                        if (s) this.sendChat(s);
                     }
                 }
-                // 剩余85%概率不发送这两类内容
             } catch (e) { console.error('[周期发布失败]', e); }
             this.periodicTimeoutId = null;
             this.schedulePeriodicPost();
@@ -676,6 +714,7 @@ const bot = {
                 const t = m.text.trim();
                 if (t.length < 3) return false;
                 if (t === ',') return false;
+                // 修改：修复CONST引用错误
                 if (t.startsWith(CONFIG.CONST.cmdPrefix)) return false;
                 if (/^欢迎\s+/.test(t)) return false;
                 if (t.includes('频道公告')) return false;
@@ -693,9 +732,9 @@ const bot = {
         } catch (e) { return null; }
     },
 
-    // 检查禁言过期（受闭嘴状态控制）
+    // 检查禁言过期
     checkMuteExpire() {
-        if (this.isMuted) return; // 闭嘴状态不发送过期提示
+        if (this.isMuted) return;
         const now = Date.now();
         for (const [user, expire] of this.silencedUsers.entries()) {
             if (expire !== Infinity && expire < now) {
@@ -707,6 +746,10 @@ const bot = {
 
     // 清理资源
     cleanup() {
+        // 防止重复清理
+        if (this.isStopping) return;
+        this.isStopping = true;
+
         // 清理定时器
         this.scheduledIntervals.forEach(t => {
             try { clearInterval(t); } catch (e) {}
@@ -720,16 +763,105 @@ const bot = {
             clearTimeout(this.periodicTimeoutId);
             this.periodicTimeoutId = null;
         }
+        // 新增：清理内存清理定时器
+        if (this.memoryCleanerId) {
+            clearInterval(this.memoryCleanerId);
+            this.memoryCleanerId = null;
+        }
 
-        // 保存数据
-        try { this.saveScheduledAnnouncements(); } catch (e) {}
-        try { this.saveIfRules(); } catch (e) {}
+        // 保存数据（改为同步，确保退出前完成）
+        try { 
+            const key = `bot_${CONFIG.botName}_scheduledAnnouncements`;
+            const saveData = this.scheduledAnnouncements.map(({ lastSendTime, ...rest }) => rest);
+            localStorage.setSync(key, JSON.stringify(saveData || []));
+        } catch (e) { console.error('[退出保存定时公告失败]', e); }
+        try { 
+            const key = `bot_${CONFIG.botName}_ifRules`;
+            localStorage.setSync(key, JSON.stringify(this.ifRules || []));
+        } catch (e) { console.error('[退出保存if规则失败]', e); }
+        try { 
+            const key = CONFIG.ly.storageKey;
+            localStorage.setSync(key, JSON.stringify(this.lyMessages || []));
+        } catch (e) { console.error('[退出保存留言失败]', e); }
+        
         this.ws && this.ws.close(1000, 'cleanup');
         console.log(`[${CONFIG.botName}] 已停止`);
     },
 
+    // ====================== 新增/修改 核心方法 ======================
+    // 加载留言
+    loadLyMessages() {
+        try {
+            const key = CONFIG.ly.storageKey;
+            const raw = localStorage.getSync(key); // 修改：使用同步get
+            this.lyMessages = raw ? JSON.parse(raw) : [];
+            this.cleanExpiredLyMessages(); // 清理过期留言
+        } catch (e) {
+            this.lyMessages = [];
+        }
+    },
+
+    // 保存留言
+    async saveLyMessages() { // 修改：改为异步
+        try {
+            const key = CONFIG.ly.storageKey;
+            await localStorage.setItem(key, JSON.stringify(this.lyMessages || []));
+        } catch (e) {
+            console.error('[保存留言失败]', e);
+        }
+    },
+
+    // 清理过期留言
+    cleanExpiredLyMessages() {
+        const now = Date.now();
+        this.lyMessages = this.lyMessages.filter(msg => msg.expireTime > now);
+        this.saveLyMessages();
+    },
+
+    // 随机选择数组元素
+    randomPick(arr) {
+        return arr && arr.length ? arr[Math.floor(Math.random() * arr.length)] : null;
+    },
+
+    // 风格回复选择器
+    pickStyleReply(type) {
+        try {
+            const pool = (CONFIG.CONST.styleTemplates && CONFIG.CONST.styleTemplates[type]) || [];
+            if (!pool.length) return null;
+            return pool[Math.floor(Math.random() * pool.length)];
+        } catch (e) { return null; }
+    },
+
+    // 新增：清理过期时间戳
+    cleanExpiredTimestamps() {
+        const expireTime = Date.now() - CONFIG.CONST.timestampExpireHours * 3600 * 1000;
+        this.recentMsgTimestamps = this.recentMsgTimestamps.filter(ts => ts >= expireTime);
+    },
+
+    // 新增：清理过期用户活跃度
+    cleanExpiredUserActivity() {
+        // 仅保留24小时内有消息的用户活跃度（防止内存泄漏）
+        const activeUsers = new Set(this.messageHistory.slice(-CONFIG.CONST.maxMsgHistory).map(m => m.nick));
+        for (const [user] of this.userActivity.entries()) {
+            if (!activeUsers.has(user)) {
+                this.userActivity.delete(user);
+            }
+        }
+    },
+
+    // 新增：启动内存清理定时器
+    startMemoryCleaner() {
+        // 每小时清理一次过期数据
+        this.memoryCleanerId = setInterval(() => {
+            this.cleanExpiredTimestamps();
+            this.cleanExpiredUserActivity();
+            CONFIG.debug && console.log(`[内存清理] 完成，当前时间戳数量：${this.recentMsgTimestamps.length}，活跃用户数：${this.userActivity.size}`);
+        }, 3600 * 1000);
+        this.debugLog(`[定时器启动] 内存清理（每小时）`);
+    },
+
     // ====================== 命令处理方法 ======================
-    // 帮助（受闭嘴状态控制）
+    // 帮助
     handleHelp(msg, _) {
         const { cmdPrefix } = CONFIG.CONST;
         const list = Object.entries(CMD_CONFIG)
@@ -739,7 +871,7 @@ const bot = {
         this.sendChat(`**命令列表**\n${list}`);
     },
 
-    // 掷骰子（受闭嘴状态控制）
+    // 掷骰子
     handleRoll(msg, params) {
         let min = 1, max = 6;
         if (params.length > 0) {
@@ -747,6 +879,11 @@ const bot = {
             if (range.length === 2 && !isNaN(range[0]) && !isNaN(range[1])) {
                 min = Number(range[0]);
                 max = Number(range[1]);
+                // 新增：校验整数
+                if (!Number.isInteger(min) || !Number.isInteger(max)) {
+                    this.sendChat(`范围必须为整数`);
+                    return;
+                }
                 if (min >= max) {
                     this.sendChat(`范围错误，最小值须小于最大值`);
                     return;
@@ -760,11 +897,21 @@ const bot = {
         this.sendChat(`🎲 [${min}-${max}]：${res}`);
     },
 
-    // AFK（受闭嘴状态控制）
-    handleAfk(msg, _) {
+    // AFK（扩展：支持自定义状态，添加省略号）
+    handleAfk(msg, params) {
         const nick = msg.nick;
+        // 有参数：设置自定义AFK状态（修改点2：添加省略号）
+        if (params.length > 0) {
+            const afkReason = params.join(' ').trim();
+            this.afkUsers.set(nick, { time: Date.now(), reason: afkReason });
+            this.sendChat(`${nick} 正在${afkReason}...`); // 核心修改：添加...
+            return;
+        }
+
+        // 无参数：原有切换逻辑
         if (this.afkUsers.has(nick)) {
-            const afkMs = Date.now() - this.afkUsers.get(nick);
+            const afkData = this.afkUsers.get(nick);
+            const afkMs = Date.now() - (typeof afkData === 'object' ? afkData.time : afkData);
             const afkStr = afkMs > 3600000 ? `${(afkMs / 3600000).toFixed(1)}h` : `${Math.floor(afkMs / 60000)}m`;
             this.afkUsers.delete(nick);
             this.sendChat(`${nick} 已返回 | 离开：${afkStr}`);
@@ -774,19 +921,41 @@ const bot = {
         }
     },
 
-    // 在线用户（受闭嘴状态控制）
+    // 在线用户（新增：修复!online命令缺失的处理函数）
     handleOnline(msg, _) {
         if (this.onlineUsers.size === 0) {
-            this.sendChat(`无在线用户`);
+            this.sendChat(`当前频道暂无在线用户`);
             return;
         }
-        const list = [...this.onlineUsers].sort().join('、');
-        this.sendChat(`在线（${this.onlineUsers.size}人）：${list}`);
+        
+        // 格式化在线用户列表
+        const userList = [...this.onlineUsers].join('、');
+        this.sendChat(`**当前在线用户**（共${this.onlineUsers.size}人）：\n${userList}`);
     },
 
-    // 最新消息ID（受闭嘴状态控制）
-    handleMsglist(msg, _) {
-        const latest = this.messageHistory.slice(-CONFIG.CONST.latestMsgCount).reverse();
+    // 消息列表（修改点3：从现在向上数，最新的在前，移除reverse）
+    handleMsglist(msg, params) {
+        const nick = msg.nick;
+        // 有参数：私信发送N条（1-110）
+        if (params.length > 0) {
+            const n = Number(params[0]);
+            if (isNaN(n) || n < 1 || n > 110) {
+                this.sendChat(`/w @${nick} 参数错误，N必须是1-110之间的数字`, false, true);
+                return;
+            }
+            // 核心修改：移除reverse()，直接取最后n条（最新的在前）
+            const targetMsgs = this.messageHistory.slice(-n);
+            if (targetMsgs.length === 0) {
+                this.sendChat(`/w @${nick} 无消息记录`, false, true);
+                return;
+            }
+            const list = targetMsgs.map(m => `#${m.id} @${m.nick}：${m.text.slice(0, 50)}`).join('\n');
+            this.sendChat(`/w @${nick} 最近${targetMsgs.length}条消息：\n${list}`, false, true);
+            return;
+        }
+
+        // 无参数：原有逻辑（修改：移除reverse()）
+        const latest = this.messageHistory.slice(-CONFIG.CONST.latestMsgCount);
         if (latest.length === 0) {
             this.sendChat(`无消息记录`);
             return;
@@ -795,7 +964,7 @@ const bot = {
         this.sendChat(`最近消息：\n${list}`);
     },
 
-    // 引用回复（受闭嘴状态控制）
+    // 引用回复
     handleReply(msg, params) {
         const [idStr, ...content] = params;
         const msgId = Number(idStr);
@@ -813,10 +982,9 @@ const bot = {
         this.sendChat(text);
     },
 
-    // 用户信息（受闭嘴状态控制，新增tripcode展示）
+    // 用户信息
     handleUserinfo(msg, params) {
         const target = params[0] || msg.nick;
-        // 查找目标用户的最新消息，获取tripcode
         const targetMsg = this.messageHistory.find(m => m.nick === target && m.trip);
         const tripcode = targetMsg?.trip || '未设置';
         
@@ -825,7 +993,6 @@ const bot = {
         const isSil = this.isSilenced(target);
         const isPermSil = isSil && this.silencedUsers.get(target) === Infinity;
         const count = this.userActivity.get(target) || 0;
-        // 核心修改：管理员判断改为tripcode
         const isAdmin = tripcode === CONFIG.CONST.ADMIN_TRIPCODE;
         const isOnline = this.onlineUsers.has(target);
 
@@ -834,13 +1001,13 @@ const bot = {
             return;
         }
 
-        const afkTime = isAfk ? Math.floor((Date.now() - this.afkUsers.get(target))/3600000) : 0;
+        const afkTime = isAfk ? Math.floor((Date.now() - (typeof this.afkUsers.get(target) === 'object' ? this.afkUsers.get(target).time : this.afkUsers.get(target)))/3600000) : 0;
         const silRemain = isSil && !isPermSil ? Math.ceil((this.silencedUsers.get(target)-Date.now())/60000) : 0;
         const text = `**${target}**\n发言：${count}条\nTripcode：${tripcode}\nAFK：${isAfk ? `是（${afkTime}h）` : '否'}\n禁言：${isSil ? (isPermSil ? '永久' : `临时${silRemain}m`) : '否'}\n管理员：${isAdmin ? '是' : '否'}\n在线：${isOnline ? '是' : '否'}`;
         this.sendChat(text);
     },
 
-    // 活跃度统计（受闭嘴状态控制）
+    // 活跃度统计
     handleStats(msg, _) {
         const top3 = [...this.userActivity.entries()]
             .sort((a,b) => b[1]-a[1])
@@ -851,7 +1018,7 @@ const bot = {
         this.sendChat(text);
     },
 
-    // 导出记录（Node.js版本：保存到本地文件）
+    // 导出记录
     handleSave(msg, _) {
         try {
             const filename = `hackchat_${CONFIG.channel}_${new Date().toISOString().slice(0,10)}.json`;
@@ -863,7 +1030,7 @@ const bot = {
         }
     },
 
-    // 清空记录（受闭嘴状态控制）
+    // 清空记录
     handleClear(msg, _) {
         this.messageHistory = [];
         this.messageIdMap.clear();
@@ -871,7 +1038,7 @@ const bot = {
         this.sendChat(`本地消息历史已清空`);
     },
 
-    // 计算器（受闭嘴状态控制）
+    // 计算器
     handleCalc(msg, params) {
         const calcStr = params.join(' ');
         if (!calcStr) {
@@ -879,6 +1046,11 @@ const bot = {
             return;
         }
         try {
+            // 新增：限制表达式长度
+            if (calcStr.length > 100) {
+                this.sendChat(`表达式过长（最大100字符）`);
+                return;
+            }
             const validReg = /^[0-9\+\-\*\/\(\)\.\s]+$/;
             if (!validReg.test(calcStr)) {
                 this.sendChat(`仅支持数字+/*/-/()`);
@@ -891,7 +1063,7 @@ const bot = {
         }
     },
 
-    // 天气查询（受闭嘴状态控制）
+    // 天气查询
     handleWeather(msg, params) {
         const city = params.join(' ');
         if (!city) {
@@ -901,6 +1073,11 @@ const bot = {
         fetch(`https://wttr.in/${encodeURIComponent(city)}?format=3`)
             .then(res => res.text())
             .then(data => {
+                // 新增：处理空数据/异常格式
+                if (!data || data.trim() === '') {
+                    this.sendChat(`未查询到${city}的天气信息`);
+                    return;
+                }
                 this.sendChat(`${data}`);
             })
             .catch(() => {
@@ -908,13 +1085,13 @@ const bot = {
             });
     },
 
-    // 随机表情（受闭嘴状态控制）
+    // 随机表情
     handleEmoji(msg, _) {
         const emoji = CONFIG.CONST.emojiList[Math.floor(Math.random() * CONFIG.CONST.emojiList.length)];
         this.sendChat(`${emoji}`);
     },
 
-    // 管理员帮助（受闭嘴状态控制）
+    // 管理员帮助
     handleSpecialHelp(msg, _) {
         const { cmdPrefix } = CONFIG.CONST;
         const list = Object.entries(CMD_CONFIG)
@@ -924,7 +1101,7 @@ const bot = {
         this.sendChat(`**管理员命令**\n${list}`);
     },
 
-    // 临时禁言（管理员命令，受tripcode权限控制）
+    // 临时禁言
     handleMute(msg, params) {
         const [target, minStr] = params;
         const minutes = Number(minStr);
@@ -940,7 +1117,7 @@ const bot = {
         this.sendChat(`${target} 禁言${minutes}分钟`);
     },
 
-    // 永久禁言（管理员命令，受tripcode权限控制）
+    // 永久禁言
     handleSilence(msg, params) {
         const target = params[0];
         if (target === CONFIG.botName) {
@@ -951,7 +1128,7 @@ const bot = {
         this.sendChat(`${target} 永久禁言`);
     },
 
-    // 解除禁言（管理员命令，受tripcode权限控制）
+    // 解除禁言
     handleUnsilence(msg, params) {
         const target = params[0];
         if (this.silencedUsers.delete(target)) {
@@ -961,7 +1138,7 @@ const bot = {
         }
     },
 
-    // !con命令（管理员命令，受tripcode权限控制）
+    // !con命令
     handleCon(msg, params) {
         const content = params.join(' ');
         if (!content) {
@@ -975,7 +1152,7 @@ const bot = {
         }, true);
     },
 
-    // 频道公告（管理员命令，受tripcode权限控制）
+    // 频道公告
     handleAnnounce(msg, params) {
         const text = params.join(' ');
         if (!text) {
@@ -986,7 +1163,7 @@ const bot = {
         this.sendChat(announce);
     },
 
-    // 管理定时公告（管理员命令，受tripcode权限控制）
+    // 管理定时公告
     handlePann(msg, params) {
         const sub = params[0];
         if (!sub) {
@@ -1056,7 +1233,7 @@ const bot = {
         }
     },
 
-    // 处理!if命令（管理员命令，受tripcode权限控制，新增addz正则模式）
+    // 处理!if命令
     handleIf(msg, params) {
         const sub = params[0];
         if (!sub) {
@@ -1067,40 +1244,38 @@ const bot = {
 
         switch (sub) {
             case 'add':
-                // 解析参数：A B N（注意A/B可能包含空格，最后一个参数是概率）
                 const probability = Number(params[params.length - 1]);
                 if (isNaN(probability) || probability < 0 || probability > 100) {
                     this.sendChat(`概率N必须是0-100的数字`);
                     return;
                 }
-                const trigger = params.slice(1, -2).join(' ') || params[1] || ''; // A
-                const reply = params.slice(-2, -1).join(' ') || ''; // B
+                const trigger = params.slice(1, -2).join(' ') || params[1] || '';
+                const reply = params.slice(-2, -1).join(' ') || '';
                 
                 if (!reply) {
                     this.sendChat(`格式错误：!if add A B N（B不能为空）`);
                     return;
                 }
 
-                const ruleId = Date.now(); // 用时间戳作为唯一ID
+                const ruleId = Date.now();
                 this.ifRules.push({
                     trigger: trigger.trim(),
                     reply: reply.trim(),
                     probability,
                     id: ruleId,
-                    isRegex: false // 标记为普通模式
+                    isRegex: false
                 });
                 this.saveIfRules();
                 this.sendChat(`已添加自动回复规则：触发词="${trigger || '空'}"，回复="${reply}"，概率=${probability}%`);
                 break;
             case 'addz':
-                // 新增addz子命令，正则模式
                 const regexProbability = Number(params[params.length - 1]);
                 if (isNaN(regexProbability) || regexProbability < 0 || regexProbability > 100) {
                     this.sendChat(`概率N必须是0-100的数字`);
                     return;
                 }
-                const regexTrigger = params.slice(1, -2).join(' ') || params[1] || ''; // 正则表达式
-                const regexReply = params.slice(-2, -1).join(' ') || ''; // 回复内容
+                const regexTrigger = params.slice(1, -2).join(' ') || params[1] || '';
+                const regexReply = params.slice(-2, -1).join(' ') || '';
                 
                 if (!regexReply) {
                     this.sendChat(`格式错误：!if addz A B N（B不能为空）`);
@@ -1113,7 +1288,7 @@ const bot = {
                     reply: regexReply.trim(),
                     probability: regexProbability,
                     id: regexRuleId,
-                    isRegex: true // 标记为正则模式
+                    isRegex: true
                 });
                 this.saveIfRules();
                 this.sendChat(`已添加自动回复规则：正则="${regexTrigger || '空'}"，回复="${regexReply}"，概率=${regexProbability}%`);
@@ -1146,11 +1321,16 @@ const bot = {
         }
     },
 
-    // 处理!talk命令（管理员命令，受tripcode权限控制）
+    // 处理!talk命令（修改：增加管理员权限校验）
     handleTalk(msg, params) {
+        // 新增：管理员权限校验
+        if (!this.hasAdminAuth(msg)) {
+            this.sendChat(`无权限，仅tripcode为2UE++I的管理员可执行`);
+            return;
+        }
+
         const action = params[0]?.toLowerCase();
         if (!action || !['on', 'off'].includes(action)) {
-            // 闭嘴状态下，不发送格式错误提示
             if (this.isMuted) return;
             this.sendChat(`格式错误：!talk on（开启发言） / !talk off（闭嘴）`);
             return;
@@ -1158,20 +1338,24 @@ const bot = {
 
         if (action === 'off') {
             this.isMuted = true;
-            this.sendChat(`闭嘴了，呜呜`, true); // 强制发送
+            this.sendChat(`闭嘴了，呜呜`, true);
             console.log(`[${CONFIG.botName}] 已切换为闭嘴状态`);
         } else {
             this.isMuted = false;
-            this.sendChat(`张嘴，说话`, true); // 强制发送
+            this.sendChat(`张嘴，说话`, true);
             console.log(`[${CONFIG.botName}] 已切换为正常发言状态`);
         }
     },
 
-    // 停止机器人（管理员命令，受tripcode权限控制）
+    // 停止机器人（已移到命令配置最下方）
     handleStop(msg, _) {
-        // 核心修改：校验tripcode权限
         if (!this.hasAdminAuth(msg)) {
             this.sendChat(`无权限，仅tripcode为2UE++I的管理员可执行`);
+            return;
+        }
+        // 新增：防止重复调用
+        if (this.isStopping) {
+            this.sendChat(`机器人正在停止中...`);
             return;
         }
         try {
@@ -1183,19 +1367,7 @@ const bot = {
         }, 500);
     },
 
-    // 风格回复选择器
-    pickStyleReply(type) {
-        try {
-            const pool = (CONFIG.CONST.styleTemplates && CONFIG.CONST.styleTemplates[type]) || [];
-            if (!pool.length) return null;
-            return pool[Math.floor(Math.random() * pool.length)];
-        } catch (e) { return null; }
-    },
-
-    // 随机工具
-    randomPick(arr) { return arr && arr.length ? arr[Math.floor(Math.random()*arr.length)] : null; },
-
-    // 一言（受闭嘴状态控制）
+    // 一言
     async handleYiyan(msg, _) {
         try {
             const res = await fetch('https://v1.hitokoto.cn/?encode=json');
@@ -1213,10 +1385,63 @@ const bot = {
             console.error('[一言错误]', e);
             this.sendChat('获取一言失败，请稍后重试');
         }
+    },
+
+    // ====================== 新增命令处理 ======================
+    // 处理!ly命令（留言功能）
+    handleLy(msg, params) {
+        const fromNick = msg.nick;
+        const fromTrip = msg.trip || '';
+        this.cleanExpiredLyMessages(); // 先清理过期留言
+
+        // !ly me 查看自己的留言（私信）
+        if (params[0] === 'me') {
+            const myLy = this.lyMessages.filter(item => item.toTrip === fromTrip);
+            if (myLy.length === 0) {
+                this.sendChat(`/w @${fromNick} 暂无对你的留言`, false, true);
+                return;
+            }
+            // 拼接留言列表
+            const lyList = myLy.map((item, idx) => {
+                const createTime = new Date(item.createTime).toLocaleString();
+                return `${idx+1}. 来自@${item.fromNick} (${createTime})：${item.content}`;
+            }).join('\n');
+            this.sendChat(`/w @${fromNick} 你的留言（共${myLy.length}条）：\n${lyList}`, false, true);
+            return;
+        }
+
+        // !ly [tripcode] [content] 添加留言
+        if (params.length < 2) {
+            this.sendChat(`格式错误：!ly [目标tripcode] [留言内容] | !ly me 查看自己的留言`, false, true);
+            return;
+        }
+
+        const toTrip = params[0].trim();
+        const content = params.slice(1).join(' ').trim();
+        if (!toTrip || !content) {
+            this.sendChat(`tripcode和留言内容不能为空`, false, true);
+            return;
+        }
+
+        // 创建留言记录
+        const lyId = Date.now();
+        const createTime = Date.now();
+        const expireTime = createTime + CONFIG.ly.expireDays * 24 * 3600 * 1000;
+        this.lyMessages.push({
+            id: lyId,
+            toTrip,
+            fromNick,
+            fromTrip,
+            content,
+            createTime,
+            expireTime
+        });
+        this.saveLyMessages();
+        this.sendChat(`留言已添加，对方可使用!ly me查看（有效期${CONFIG.ly.expireDays}天）`, false, true);
     }
 };
 
-// 捕获退出信号，清理资源
+// 捕获退出信号
 process.on('SIGINT', () => {
     console.log('\n[收到退出信号] 正在停止机器人...');
     bot.cleanup();
