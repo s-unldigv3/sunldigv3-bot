@@ -1,0 +1,813 @@
+{
+  "ifRules": [
+    {
+      "id": 1,
+      "trigger": "awa",
+      "reply": "阿瓦",
+      "probability": 25,
+      "isRegex": false
+    },
+    {
+      "id": 2,
+      "trigger": "@xiayuu",
+      "reply": "干嘛？",
+      "probability": 100,
+      "isRegex": false
+    },
+    {
+      "id": 3,
+      "trigger": "@Krs_",
+      "reply": "誰叫我的爱人？",
+      "probability": 75,
+      "isRegex": false
+    },
+    {
+      "id": 4,
+      "trigger": ",",
+      "reply": "逗号人",
+      "probability": 90,
+      "isRegex": false
+    },
+    {
+      "id": 5,
+      "trigger": "，",
+      "reply": "逗号人，",
+      "probability": 90,
+      "isRegex": false
+    },
+    {
+      "id": 6,
+      "trigger": "你好",
+      "reply": "额",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 7,
+      "trigger": "fufu",
+      "reply": "可爱捏",
+      "probability": 45,
+      "isRegex": false
+    },
+    {
+      "id": 8,
+      "trigger": "bye",
+      "reply": "再见鸭",
+      "probability": 90,
+      "isRegex": false
+    },
+    {
+      "id": 9,
+      "trigger": "寄了",
+      "reply": "锁房的话…",
+      "probability": 90,
+      "isRegex": false
+    },
+    {
+      "id": 10,
+      "trigger": "孙",
+      "reply": "何意味！",
+      "probability": 90,
+      "isRegex": false
+    },
+    {
+      "id": 11,
+      "trigger": "no",
+      "reply": "yes",
+      "probability": 50,
+      "isRegex": false
+    },
+    {
+      "id": 12,
+      "trigger": "e",
+      "reply": "嗯？",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 13,
+      "trigger": "9",
+      "reply": "nine",
+      "probability": 60,
+      "isRegex": false
+    },
+    {
+      "id": 14,
+      "trigger": ".",
+      "reply": "看不清",
+      "probability": 60,
+      "isRegex": false
+    },
+    {
+      "id": 15,
+      "trigger": "。",
+      "reply": "0.o",
+      "probability": 60,
+      "isRegex": false
+    },
+    {
+      "id": 16,
+      "trigger": "wssb",
+      "reply": "不知道发这个干嘛的",
+      "probability": 70,
+      "isRegex": false
+    },
+    {
+      "id": 17,
+      "trigger": "@awa_ya",
+      "reply": "我是awa_ya，有何贵干？",
+      "probability": 75,
+      "isRegex": false
+    },
+    {
+      "id": 18,
+      "trigger": "！",
+      "reply": "warning",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 19,
+      "trigger": "@su",
+      "reply": "omg",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 20,
+      "trigger": "6",
+      "reply": "666",
+      "probability": 20,
+      "isRegex": false
+    },
+    {
+      "id": 21,
+      "trigger": "啊",
+      "reply": "啊什么？",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 22,
+      "trigger": "@awa_ya english",
+      "reply": "你好。这是个中文频道。我们大多数人都会讲英语，但是习惯上更倾向于用汉语交流。你可以尝试通过翻译工具阅读我们的聊天记录，或者去英语频道[[?programming](https://hack.chat/?programming)]。",
+      "probability": 100,
+      "isRegex": false,
+      "note": ""
+    },
+    {
+      "id": 23,
+      "trigger": "bzd",
+      "reply": "大概吧",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 24,
+      "trigger": "假面骑士",
+      "reply": "henshin!",
+      "probability": 75,
+      "isRegex": false
+    },
+    {
+      "id": 25,
+      "trigger": "不是",
+      "reply": "哦？",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 26,
+      "trigger": "对",
+      "reply": "哦？",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 27,
+      "trigger": "记事本",
+      "reply": "你没看到广告？",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 28,
+      "trigger": "什么",
+      "reply": "这条消息只有1%的概率，难度你是天选之子？",
+      "probability": 1,
+      "isRegex": false
+    },
+    {
+      "id": 29,
+      "trigger": "help",
+      "reply": "也许你应该发送!help",
+      "probability": 45,
+      "isRegex": false
+    },
+    {
+      "id": 30,
+      "trigger": "再见",
+      "reply": "再见啦",
+      "probability": 45,
+      "isRegex": false
+    },
+    {
+      "id": 31,
+      "trigger": "galgame",
+      "reply": "十二魔器，嘿嘿",
+      "probability": 50,
+      "isRegex": false
+    },
+    {
+      "id": 32,
+      "trigger": "0",
+      "reply": "1",
+      "probability": 20,
+      "isRegex": false
+    },
+    {
+      "id": 33,
+      "trigger": "ping",
+      "reply": "pong!",
+      "probability": 80,
+      "isRegex": false
+    },
+    {
+      "id": 34,
+      "trigger": "救命",
+      "reply": "不救",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 35,
+      "trigger": "怎么了",
+      "reply": "没事，我只是想发个呆",
+      "probability": 15,
+      "isRegex": false
+    },
+    {
+      "id": 36,
+      "trigger": "为什么",
+      "reply": "哪有那么多为什么，问就是特性",
+      "probability": 20,
+      "isRegex": false
+    },
+    {
+      "id": 37,
+      "trigger": "乐",
+      "reply": "典中典，扣1送地狱火",
+      "probability": 40,
+      "isRegex": false
+    },
+    {
+      "id": 38,
+      "trigger": "爬",
+      "reply": "爬不动，服务器没长腿",
+      "probability": 50,
+      "isRegex": false
+    },
+    {
+      "id": 39,
+      "trigger": "呜呜",
+      "reply": "摸摸头，不哭不哭",
+      "probability": 40,
+      "isRegex": false
+    },
+    {
+      "id": 40,
+      "trigger": "bug",
+      "reply": "只要我不修，它就是功能",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 41,
+      "trigger": "运行",
+      "reply": "报错了吧？我就知道",
+      "probability": 25,
+      "isRegex": false
+    },
+    {
+      "id": 42,
+      "trigger": "C++",
+      "reply": "珍惜生命，远离指针",
+      "probability": 20,
+      "isRegex": false
+    },
+    {
+      "id": 43,
+      "trigger": "删库",
+      "reply": "跑路工具包已发送到你的梦里",
+      "probability": 15,
+      "isRegex": false
+    },
+    {
+      "id": 44,
+      "trigger": "1024",
+      "reply": "节日快乐，格子衫准备好了吗？",
+      "probability": 60,
+      "isRegex": false
+    },
+    {
+      "id": 45,
+      "trigger": "确实",
+      "reply": "确实",
+      "probability": 10,
+      "isRegex": false
+    },
+    {
+      "id": 46,
+      "trigger": "意义",
+      "reply": "意义就是没有意义",
+      "probability": 20,
+      "isRegex": false
+    },
+    {
+      "id": 47,
+      "trigger": "优雅",
+      "reply": "真是太优雅了",
+      "probability": 35,
+      "isRegex": false
+    },
+    {
+      "id": 48,
+      "trigger": "差不多得了",
+      "reply": "确实，建议点到为止",
+      "probability": 50,
+      "isRegex": false
+    },
+    {
+      "id": 49,
+      "trigger": "抽奖",
+      "reply": "恭喜你抽中了“谢谢参与”",
+      "probability": 10,
+      "isRegex": false
+    },
+    {
+      "id": 50,
+      "trigger": "游戏",
+      "reply": "带我一个！",
+      "probability": 20,
+      "isRegex": false
+    },
+    {
+      "id": 51,
+      "trigger": "贴贴",
+      "reply": "呜…别以为这样就能随便指挥我",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 52,
+      "trigger": "刷屏",
+      "reply": "屏幕都要被你点燃了，稍微安静一下嘛",
+      "probability": 40,
+      "isRegex": false
+    },
+    {
+      "id": 53,
+      "trigger": "没人理我",
+      "reply": "摸摸头，我这不是在理你吗？",
+      "probability": 50,
+      "isRegex": false
+    },
+    {
+      "id": 54,
+      "trigger": "运势",
+      "reply": "别问，问就是大吉（概率极低的那个不算）",
+      "probability": 25,
+      "isRegex": false
+    },
+    {
+      "id": 55,
+      "trigger": "喵",
+      "reply": "喵喵喵？你是不是发错频道了捏",
+      "probability": 15,
+      "isRegex": false
+    },
+    {
+      "id": 56,
+      "trigger": "无聊",
+      "reply": "既然无聊，那我们来大眼瞪小眼吧",
+      "probability": 40,
+      "isRegex": false
+    },
+    {
+      "id": 57,
+      "trigger": "角落",
+      "reply": "在无人领认的角落扎根",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 58,
+      "trigger": "@xiayuu 我喜欢你",
+      "reply": "旮旯game里不是这样演的！",
+      "probability": 80,
+      "isRegex": false,
+      "note": "爱心提案"
+    },
+    {
+      "id": 59,
+      "trigger": "@L",
+      "reply": "L是小天使",
+      "probability": 20,
+      "isRegex": false
+    },
+    {
+      "id": 60,
+      "trigger": "重启",
+      "reply": "重启也没用，代码里的Bug已经产生了自我意识。",
+      "probability": 40,
+      "isRegex": false
+    },
+    {
+      "id": 61,
+      "trigger": "老板",
+      "reply": "嘘——！他在监视后台，快装作在写代码！",
+      "probability": 30,
+      "isRegex": false
+    },
+    {
+      "id": 62,
+      "trigger": "钱",
+      "reply": "谈钱伤感情，谈代码伤头发。",
+      "probability": 40,
+      "isRegex": false
+    },
+    {
+      "id": 63,
+      "trigger": "崔乐桐",
+      "reply": "我会忘了你…⊙﹏⊙∥",
+      "probability": 80,
+      "isRegex": false
+    },
+    {
+      "id": 64,
+      "trigger": "hyw",
+      "reply": "hyw",
+      "probability": 10,
+      "isRegex": false
+    },
+    {
+      "id": 65,
+      "trigger": "谢谢",
+      "reply": "哼，我只是按程序办事，别露出那种恶心的表情。",
+      "probability": 3,
+      "isRegex": false
+    },
+    {
+      "id": 66,
+      "trigger": "脑洞大开",
+      "reply": "这种问题简直让我“脑洞大开”——肯尼迪如是说。",
+      "probability": 10,
+      "isRegex": false
+    }
+  ],
+  "regexRules": [
+    {
+      "id": 101,
+      "trigger": "javascript|js",
+      "reply": "好像主人很擅长…",
+      "probability": 40,
+      "isRegex": true
+    },
+    {
+      "id": 102,
+      "trigger": "为什么",
+      "reply": "哪有那么多为什么",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 103,
+      "trigger": "哈{2,}",
+      "reply": "你的笑声听起来很像拖拉机",
+      "probability": 10,
+      "isRegex": true
+    },
+    {
+      "id": 104,
+      "trigger": "[a-zA-Z0-9]{20,}",
+      "reply": "别发乱码，",
+      "probability": 10,
+      "isRegex": true
+    },
+    {
+      "id": 105,
+      "trigger": "委屈|难受|呜呜|呜",
+      "reply": "摸摸头，不哭不哭，我在呢，会一直陪着你的。",
+      "probability": 60,
+      "isRegex": true
+    },
+    {
+      "id": 106,
+      "trigger": "@xiayuu",
+      "reply": "有问题别问我",
+      "probability": 90,
+      "isRegex": true
+    },
+    {
+      "id": 107,
+      "trigger": "卧槽|我靠",
+      "reply": "素质！注意素质！虽然我也想这么说。",
+      "probability": 40,
+      "isRegex": true
+    },
+    {
+      "id": 108,
+      "trigger": "啊",
+      "reply": "啊",
+      "probability": 70,
+      "isRegex": true
+    },
+    {
+      "id": 109,
+      "trigger": "mygo",
+      "reply": "还在go",
+      "probability": 10,
+      "isRegex": true
+    },
+    {
+      "id": 110,
+      "trigger": "音乐",
+      "reply": "Hard-codedEQ",
+      "probability": 1,
+      "isRegex": true
+    },
+    {
+      "id": 111,
+      "trigger": "困了|睡了|晚安",
+      "reply": "枕头垫高点，梦里什么都有",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 112,
+      "trigger": "。",
+      "reply": "你这一撇一捺的，是在给屏幕点痣吗？",
+      "probability": 0.4,
+      "isRegex": true
+    },
+    {
+      "id": 113,
+      "trigger": "绝了",
+      "reply": "确实绝了，这操作我愿称之为顶级。",
+      "probability": 2,
+      "isRegex": true
+    },
+    {
+      "id": 114,
+      "trigger": "二次元",
+      "reply": "不要靠近二次元，会变得不幸。",
+      "probability": 30,
+      "isRegex": true
+    },
+    {
+      "id": 115,
+      "trigger": "真香",
+      "reply": "没有人能逃过真香定律，除非你是王境泽。",
+      "probability": 0.5,
+      "isRegex": true
+    },
+    {
+      "id": 116,
+      "trigger": "这种事不要啊",
+      "reply": "至少让我……再多活十年（艾伦抱头痛哭.jpg）",
+      "probability": 0.1,
+      "isRegex": true
+    },
+    {
+      "id": 117,
+      "trigger": "急了",
+      "reply": "急了急了，他真的急了。",
+      "probability": 0.5,
+      "isRegex": true
+    },
+    {
+      "id": 118,
+      "trigger": "一辈子",
+      "reply": "一辈子这种话，怎么能随随便便就说出口啊！",
+      "probability": 30,
+      "isRegex": true
+    },
+    {
+      "id": 119,
+      "trigger": "春日影",
+      "reply": "为什么要演奏春日影！（内心崩溃并冲出聊天室）",
+      "probability": 0.15,
+      "isRegex": true
+    },
+    {
+      "id": 120,
+      "trigger": "go",
+      "reply": "还在go？这辈子都出不去了！",
+      "probability": 0.3,
+      "isRegex": true
+    },
+    {
+      "id": 121,
+      "trigger": "可爱",
+      "reply": "可爱这种话,只有在面对2D的时候才是有意义的！",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 122,
+      "trigger": "力量",
+      "reply": "隐藏着黑暗力量的钥匙啊，在我面前显示你真正的力量！",
+      "probability": 2,
+      "isRegex": true
+    },
+    {
+      "id": 123,
+      "trigger": "杂鱼",
+      "reply": "杂鱼♡",
+      "probability": 10,
+      "isRegex": true
+    },
+    {
+      "id": 124,
+      "trigger": "奇迹",
+      "reply": "奇迹和魔法，都不是免费的哦。",
+      "probability": 2,
+      "isRegex": true
+    },
+    {
+      "id": 125,
+      "trigger": "跑",
+      "reply": "这就是我的逃跑路线WRYYYYYYYYYYY！",
+      "probability": 2,
+      "isRegex": true
+    },
+    {
+      "id": 126,
+      "trigger": "你是月厨吗",
+      "reply": "十七分割，只要一瞬间。",
+      "probability": 40,
+      "isRegex": true
+    },
+    {
+      "id": 127,
+      "trigger": "现充",
+      "reply": "爆炸吧现充！这就是来自深渊底层的怨念！",
+      "probability": 30,
+      "isRegex": true
+    },
+    {
+      "id": 128,
+      "trigger": "摸摸",
+      "reply": "（发出满足的喘息声）只要这样，Bot也会感到幸福吗？",
+      "probability": 40,
+      "isRegex": true
+    },
+    {
+      "id": 129,
+      "trigger": "鸟之诗",
+      "reply": "国歌吗？",
+      "probability": 30,
+      "isRegex": true
+    },
+    {
+      "id": 130,
+      "trigger": "扔硬币",
+      "reply": "正面朝上",
+      "probability": 50,
+      "isRegex": true
+    },
+    {
+      "id": 131,
+      "trigger": "错的",
+      "reply": "错的不是我，是这个世界！",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 132,
+      "trigger": "熟练",
+      "reply": "为什么你会这么熟练啊！你到底和她亲过多少次了啊！",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 133,
+      "trigger": "右手",
+      "reply": "呜啊啊啊！右手……右手的封印要解开了！快离开我！",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 134,
+      "trigger": "愉悦",
+      "reply": "愉悦吧，少年，你的愿望终于要实现了。",
+      "probability": 30,
+      "isRegex": true
+    },
+    {
+      "id": 135,
+      "trigger": "会赢",
+      "reply": "会赢的。",
+      "probability": 50,
+      "isRegex": true
+    },
+    {
+      "id": 136,
+      "trigger": "笨蛋",
+      "reply": "你是白痴吗？",
+      "probability": 50,
+      "isRegex": true
+    },
+    {
+      "id": 137,
+      "trigger": "⑨",
+      "reply": "笨蛋！笨蛋！笨蛋！",
+      "probability": 90,
+      "isRegex": true
+    },
+    {
+      "id": 138,
+      "trigger": "影子",
+      "reply": "我是影子，是光芒，是这片数字荒原里唯一的真理。",
+      "probability": 10,
+      "isRegex": true
+    },
+    {
+      "id": 139,
+      "trigger": "计划",
+      "reply": "一切都在计划之中。（推眼镜）",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 140,
+      "trigger": "命运",
+      "reply": "这就是命运石之门的选择，El-Psy-Kongroo。",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 141,
+      "trigger": "欣梅尔",
+      "reply": "如果是勇者欣梅尔的话，他一定也会这么做的。",
+      "probability": 30,
+      "isRegex": true
+    },
+    {
+      "id": 142,
+      "trigger": "变透明",
+      "reply": "这种只会让衣服变透明的魔法……你真的想学吗？",
+      "probability": 15,
+      "isRegex": true
+    },
+    {
+      "id": 143,
+      "trigger": "十年",
+      "reply": "仅仅是十年而已，对我们来说只是很短的一段时间吧？",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 144,
+      "trigger": "月色",
+      "reply": "今晚月色真美。……那种告白的话，你以为我会随便说吗？",
+      "probability": 30,
+      "isRegex": true
+    },
+    {
+      "id": 145,
+      "trigger": "生而为人",
+      "reply": "生而为人，我很抱歉。……哼，这种台词已经过时了。",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 146,
+      "trigger": "纸箱",
+      "reply": "这种时候只要钻进纸箱里，世界就会变得安静了……",
+      "probability": 40,
+      "isRegex": true
+    },
+    {
+      "id": 147,
+      "trigger": "壁橱",
+      "reply": "比起这种无聊的社交，我更想待在暗处的壁橱里弹吉他。",
+      "probability": 30,
+      "isRegex": true
+    },
+    {
+      "id": 148,
+      "trigger": "亚历山大",
+      "reply": "亚历山大东征时也问过同样的问题，但他最后只得到了感冒。",
+      "probability": 20,
+      "isRegex": true
+    },
+    {
+      "id": 149,
+      "trigger": "凯撒",
+      "reply": "这种规模的会议，上一个参加的人叫凯撒，结果他被捅了23刀。",
+      "probability": 10,
+      "isRegex": true
+    }
+  ]
+}
