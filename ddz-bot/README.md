@@ -1,10 +1,11 @@
 ---
 title: Ddz Bot
-emoji: 👀
+emoji: 🤖
 colorFrom: blue
-colorTo: indigo
+colorTo: green
 sdk: docker
 pinned: false
-license: other
-short_description: ddz-bot
 ---
+
+# Ddz Bot
+A game bot.
