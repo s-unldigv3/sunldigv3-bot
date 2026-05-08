@@ -1,4 +1,4 @@
-# sunldigv3-bot & xiayuu
+# sunldigv3-bot & ddz-bot
 
 分为两个文件夹：
 
