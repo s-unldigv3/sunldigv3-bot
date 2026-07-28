@@ -18,7 +18,7 @@ const WebSocket = require('ws');
 const CONFIG = {
   server: "wss://hack.chat/chat-ws",
   channel: "lounge",
-  botName: "xiayuu",
+  botName: "ddz_bot",
   // 指令别名（简写+全写）
   commands: {
     join: { alias: ['j', 'join'], desc: '加入游戏' },       // d j / d join
